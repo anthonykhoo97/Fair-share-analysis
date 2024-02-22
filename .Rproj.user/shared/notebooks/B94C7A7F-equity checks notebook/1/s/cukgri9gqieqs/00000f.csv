@@ -1,0 +1,20 @@
+"0","# this code is migrated from earlier script fair share reanalysis code.R"
+"0","# import dependencies"
+"0",""
+"0","library(ggplot2)"
+"0","library(magrittr)"
+"0","library(dplyr)"
+"0","library(forcats)"
+"0","library(moments)"
+"0","library(ggdensity)"
+"0","library(ggside)"
+"2","Registered S3 method overwritten by 'ggside':
+  method from   
+  +.gg   ggplot2
+"
+"0","library(scales) "
+"0","library(ineq)"
+"0","library(gglorenz)"
+"0","library(tidyr)"
+"0",""
+"0","# data source should be in workspace and can be called from earlier script."

@@ -1,0 +1,56 @@
+"0","```r
+# fix the variable class for df.sliced
+
+df.sliced[,c(3:21)] <- sapply(df.sliced[,c(3:21)], as.numeric)
+str(df.sliced)
+
+## create fair share reduction variable
+##* fair share reduction = baseline emissions - emissions allocation 
+
+df.sliced.wfs <- df.sliced %>%  #create baseline emissions
+  mutate(base_emissions_mtco2e = .$fossil_CO2_MtCO2 + .$NonCO2_MtCO2e)
+df.sliced.wfs <- df.sliced.wfs %>% # create fair share rdxn column
+  mutate(fs_rdxn_mtco2e = .$base_emissions_mtco2e - .$allocation_MtCO2) 
+
+df.sliced.wfs <- slice(df.sliced.wfs, 1:(n() - 2)) # slice the bottom 2 rows 
+
+## filter df.sliced to 2030 of all countries and all region
+
+unique(df.sliced$iso3)
+get.region <- 
+  c(\"WORLD\", \"HIGH_INCOME\", \"UPPER_MID_INCOME\", \"LOWER_MID_INCOME\", \"LOW_INCOME\", \"ANNEX_1\", \"ANNEX_2\", 
+    \"NON_ANNEX_1\", \"EIT\", \"LDC\", \"EU15\", \"EU13\", \"EU28\", \"EU27\", \"OECD_NA\", \"OECD\", \"OECD_EUROPE\", \"OECD_PACIFIC\", 
+    \"EE_EURASIA\", \"ASIA\", \"AFRICA\", \"MIDDLE_EAST\", \"LATIN_AMERICA\", \"NON_OECD\", \"ASEAN\", \"CPA\", \"SSA\",                     
+    \"NAMER\", \"WEU\", \"MAF\", \"PAS\", \"OECD90\", \"MEA\", \"JPAUNZ\", \"SAS\", \"OECD90EU\", \"\") # get name of region to filter
+
+df.countries <- df.sliced.wfs[df.sliced.wfs$year == \"2030\" & !(df.sliced.wfs$iso3 %in% get.region),]
+unique(df.countries$country) # check if only countries remain in the dataframe
+
+df.region <- df.sliced.wfs[df.sliced.wfs$year == \"2030\" & df.sliced.wfs$iso3 %in% get.region,]
+unique(df.region$country) # check if only country groups remain in the dataframe
+
+df.incomeclass <- df.sliced.wfs[df.sliced.wfs$year == \"2030\" & 
+                                  df.sliced.wfs$iso3 %in% c(\"HIGH_INCOME\", \"UPPER_MID_INCOME\", \"LOWER_MID_INCOME\", \"LOW_INCOME\"),]
+
+df.annexes <- df.sliced.wfs[df.sliced.wfs$year == \"2030\" & 
+                              df.sliced.wfs$iso3 %in% c(\"ANNEX_1\", \"ANNEX_2\", \"NON_ANNEX_1\"),]
+
+df.big6 <- df.sliced.wfs[df.sliced.wfs$year == \"2030\" & 
+                           df.sliced.wfs$iso3 %in% big6,]
+
+# as proxy of absolute responsibility, we look at cumulative emissions until 2030
+#* relative responsibility = country cum emissions/sum of global cum. emissions
+## create cumulative emissions variable
+
+cum_base_emissions <- aggregate(df.sliced.wfs$base_emissions_mtco2e, 
+                                by = list(df.sliced.wfs$iso3), FUN=sum)
+colnames(cum_base_emissions)[1] <- \"iso3\"
+colnames(cum_base_emissions)[2] <- \"cum_base_emissions_mtco2e\"
+
+# map on cumulative emissions
+df.countries$cum_base_emissions_mtco2e <- 
+  cum_base_emissions$cum_base_emissions_mtco2e[match(df.countries$iso3, cum_base_emissions$iso3)]
+
+df.region$cum_base_emissions_mtco2e <- 
+  cum_base_emissions$cum_base_emissions_mtco2e[match(df.region$iso3, cum_base_emissions$iso3)]
+```"

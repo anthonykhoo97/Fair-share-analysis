@@ -1,0 +1,31 @@
+"0","```r
+## --- create comparison table --- ##
+
+df.compare <- df.fs
+
+## --- add NDC column for all countries --- ##
+# create base and net-CO2 emissions line [fossil CO2 +- LULUCF removals]
+
+df.compare <- df.compare %>% mutate(base_emissions_mtco2e = fossil_CO2_MtCO2+NonCO2_MtCO2e)
+df.compare <- df.compare %>% mutate(net_emissions_mtco2e = fossil_CO2_MtCO2+NonCO2_MtCO2e+LULUCF_MtCO2)
+
+# add NDC value to new column
+
+df.compare <- df.compare %>% 
+  mutate(NDCuncon_emissions_target_mtco2e = 
+           case_when(
+                      iso3 == \"IDN\" & year == 2030 ~ NDC.uncon.idn,
+                      iso3 == \"THA\" & year == 2030 ~ NDC.uncon.tha,
+                      iso3 == \"USA\" & year == 2030 ~ NDC.lower.US,
+                      iso3 == \"MYS\" & year == 2030 ~ NDC.MYS,
+                      .default = NA)
+         )
+df.compare <- df.compare %>% 
+  mutate(NDCcon_emissions_target_mtco2e = 
+           case_when(
+             iso3 == \"IDN\" & year == 2030 ~ NDC.con.idn,
+             iso3 == \"THA\" & year == 2030 ~ NDC.con.tha,
+             iso3 == \"USA\" & year == 2030 ~ NDC.upper.US,
+             .default = NA)
+        )
+```"

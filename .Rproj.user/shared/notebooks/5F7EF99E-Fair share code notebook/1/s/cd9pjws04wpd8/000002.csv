@@ -1,0 +1,46 @@
+"0","```r
+#### MYS emissions intensity-based NDC calc
+
+# set up CAGR and EI functions #
+
+CAGR_FV <- function(CAGR, present_value, yrs) {
+  final_value = present_value * (CAGR / 100 + 1)^yrs
+  return(final_value)
+}
+
+EI_Ef <- function(Ei, delta) {
+  # Ef = emissions intensity at final year, 2030
+  # Ei = emissions intensity at initial year, 2005
+  # delta = difference between compared final and initial year, 0.45
+  Ef = Ei*(delta + 1)
+  return(Ef)
+}
+
+## find MYS NDC emissions level
+
+GDP2005<- 729.82
+GDP2030 <- CAGR_FV(4.5, 1507.31, 8) # find GDP2030 based on WEO forecast 4.5% growth rate
+
+BUR4.emi2005 <- 250.044 
+
+EI2005 <- BUR4.emi2005/GDP2005
+EI2030 <- EI_Ef(EI2005, -0.45) # find emissions intensity based on known 2005 figures
+
+BUR4.emi2030 <- EI2030*GDP2030 # find absolute 2030 emissions
+
+NDC.MYS <- BUR4.emi2030 # NDC 2030 emissions level is based on EI 45% lower than 2005  
+
+BUR4.netemi2005 <- 52.967
+
+EI2005.lulucf <- BUR4.netemi2005/GDP2005 # find emissions intensity based on known 2005 netted figures
+EI2030.lulucf <- EI_Ef(EI2005.lulucf, -0.45) # find emissions intensity based on known 2005 netted figures
+
+BUR4.netemi2030 <- EI2030.lulucf*GDP2030 # find absolute 2030 emissions
+
+NDC.MYS.lulucf <- BUR4.netemi2030 # NDC 2030 emissions level is based on EI 45% lower than 2005
+
+#### compute NDC - emissions reduction for MYS
+
+NDC.rdxn.MYS <- 530.29108 - BUR4.emi2030 # BUR BAU
+NDC.rdxn.MYS.lulucf <- 302.88559 - BUR4.netemi2030
+```"

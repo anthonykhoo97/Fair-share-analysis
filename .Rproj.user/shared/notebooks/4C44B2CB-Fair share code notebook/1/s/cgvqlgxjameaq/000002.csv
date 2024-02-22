@@ -1,0 +1,30 @@
+"0","```r
+## plot preview
+
+ggplot(df.compare) +
+  facet_wrap(~iso3, scales = \"free\") +
+  geom_path(aes(x = year, y = base_emissions_mtco2e),
+            colour = \"grey\",
+            linewidth = 1) +
+  geom_path(aes(x = year, y = allocation_MtCO2),
+            colour = \"orange\",
+            linewidth = 1) +
+  geom_point(aes(x = year, y = NDCuncon_emissions_target_mtco2e),
+             colour = \"blue\",
+             size = 1.5) +
+  geom_point(aes(x = year, y = NDCcon_emissions_target_mtco2e),
+             colour = \"lightblue\",
+             size = 1.5) +
+  geom_point(aes(x = year, y = rb1_NDCuncon_mtco2e),
+             colour = \"darkgreen\",
+             size = 1.5) +
+  geom_point(aes(x = year, y = rb1_NDCcon_mtco2e),
+             colour = \"yellow\",
+             size = 1.5) +
+  scale_x_continuous(limit = c(1990,2030)) +
+  facet_wrap(vars(iso3)) +
+    theme(panel.background = element_blank(),
+          panel.grid = element_blank(),
+          strip.background = element_blank(),
+          strip.text = element_text(face = \"bold\"))
+```"

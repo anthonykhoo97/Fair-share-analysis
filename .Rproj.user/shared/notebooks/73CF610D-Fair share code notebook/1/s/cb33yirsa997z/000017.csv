@@ -1,0 +1,3 @@
+"0",""
+"0","df.lulucf <- read.csv(file=""C:/Users/khoo.weiyang/OneDrive - Khazanah Research Institute/KRI-Work/Climate/Resources/02 Data/fair-share-analysis/data/cerc_all_output_1694669254_LULUCF.csv"") # import dataset incl. lulucf [disabled on web api]"
+"0","print(df.lulucf)"

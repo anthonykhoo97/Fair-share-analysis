@@ -1,0 +1,21 @@
+"0","```r
+## ---  NDC - fair share comparisons --- ##
+
+#### compute NDC - emissions allocation
+
+NDC.uncon.idn = 2869*(1-.3189)
+NDC.con.idn = 2869*(1-.4320)
+NDC.uncon.tha = 555*(1-.3)
+NDC.con.tha = 555*(1-.4)
+NDC.lower.US = 6635*(1-.5)
+NDC.upper.US = 6635*(1-.52)
+
+#### compute NDC - emissions reduction
+
+NDC.rdxn.uncon.idn = 2869*.3189
+NDC.rdxn.con.idn = 2869*.4320
+NDC.rdxn.uncon.tha = 555*.3
+NDC.rdxn.con.tha = 555*.4
+NDC.rdxn.lower.US = 6635*.5
+NDC.rdxn.upper.US = 6635*.52
+```"

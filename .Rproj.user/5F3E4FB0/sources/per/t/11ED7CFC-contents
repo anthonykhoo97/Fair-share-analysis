@@ -1,0 +1,643 @@
+---
+title: "Equity checks on effort-sharing framework"
+author: "Khoo Wei Yang"
+date: "18/09/2023"
+output:
+  html_document:
+    df_print: paged
+  html_notebook:
+    theme: flatly
+---
+
+Following the fair share comparison, this analysis intend to test the CERF framework for equity principles. According to [Ringius et al. (2002)](https://link.springer.com/article/10.1023/A:1015041613785), any climate effort-sharing regimes can follow largely four principles. To be equitably grounded, the regime need to redistribute costs and benefits according to responsibility, capability, and needs. In a crude way, we can check the boxes of these criteria by looking at: </br>
+1. how the framework allocate mitigation burdens, i.e., does it accord burden proportionally to responsibility and capability? </br>
+2. how does the framework address needs, i.e., does the framework allocate equitable climate space for those in need of an acceptable amount of emissions allowance to develop?
+
+The analysis structures as follows: </br>
+1. We first check the proportionality of effort allocation and baseline emissions of each country. We check if there is grandfathering of emissions allowance, i.e., bigger emitters get more allowance, which can crop up in inequitable regimes. </br>
+2. As emissions distribution in largely unequal, we check if the effort allocation system, which incur reduction obligations on countries, much like a tax system. We assess if the system can redistribute the constrained climate space, in other words, correct for the imbalances in an emissions distribution? </br>
+3. Finally we check if the framework accommodate the needs of groups below development threshold to meet their developmental needs. We do this by checking balances of emissions allowance for groups, comparing it with the share of population below the defined development threshold. We can also check this development threshold against poverty line population.
+
+# Preparing the data
+
+```{r include=FALSE}
+# this code is migrated from earlier script fair share reanalysis code.R
+# import dependencies
+
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+library(forcats)
+library(moments)
+library(ggdensity)
+library(ggside)
+library(scales) 
+library(ineq)
+library(gglorenz)
+library(tidyr)
+
+# data source should be in workspace and can be called from earlier script.
+```
+
+```{r include=FALSE}
+# read csv
+df <- read.csv(file="C:/Users/khoo.weiyang/OneDrive - Khazanah Research Institute/KRI-Work/Climate/Resources/02 Data/fair-share-analysis/data/cerc_all_output_1694574828.csv") # import dataset excl. lulucf
+print(df)
+
+df.lulucf <- read.csv(file="C:/Users/khoo.weiyang/OneDrive - Khazanah Research Institute/KRI-Work/Climate/Resources/02 Data/fair-share-analysis/data/cerc_all_output_1694669254_LULUCF.csv") # import dataset incl. lulucf [disabled on web api]
+print(df.lulucf)
+
+# slice dataframe to fit
+df.sliced <- df %>% slice(-(1:29))
+names(df.sliced) <- df.sliced[1,]
+df.sliced <- df.sliced[-1,]
+
+df.lulucf.sliced <- df.lulucf %>% slice(-(1:29))
+names(df.lulucf.sliced) <- df.lulucf.sliced[1,]
+df.lulucf.sliced <- df.lulucf.sliced[-1,]
+```
+
+
+```{r include=FALSE}
+# fix the variable class for df.sliced
+
+df.sliced[,c(3:21)] <- sapply(df.sliced[,c(3:21)], as.numeric)
+str(df.sliced)
+
+## create fair share reduction variable
+##* fair share reduction = baseline emissions - emissions allocation 
+
+df.sliced.wfs <- df.sliced %>%  #create baseline emissions
+  mutate(base_emissions_mtco2e = .$fossil_CO2_MtCO2 + .$NonCO2_MtCO2e)
+df.sliced.wfs <- df.sliced.wfs %>% # create fair share rdxn column
+  mutate(fs_rdxn_mtco2e = .$base_emissions_mtco2e - .$allocation_MtCO2) 
+
+df.sliced.wfs <- slice(df.sliced.wfs, 1:(n() - 2)) # slice the bottom 2 rows 
+
+## filter df.sliced to 2030 of all countries and all region
+
+unique(df.sliced$iso3)
+get.region <- 
+  c("WORLD", "HIGH_INCOME", "UPPER_MID_INCOME", "LOWER_MID_INCOME", "LOW_INCOME", "ANNEX_1", "ANNEX_2", 
+    "NON_ANNEX_1", "EIT", "LDC", "EU15", "EU13", "EU28", "EU27", "OECD_NA", "OECD", "OECD_EUROPE", "OECD_PACIFIC", 
+    "EE_EURASIA", "ASIA", "AFRICA", "MIDDLE_EAST", "LATIN_AMERICA", "NON_OECD", "ASEAN", "CPA", "SSA",                     
+    "NAMER", "WEU", "MAF", "PAS", "OECD90", "MEA", "JPAUNZ", "SAS", "OECD90EU", "") # get name of region to filter
+
+big6 <- c("USA","EU27", "GBR", "CHK", "IND", "RUS")
+
+df.countries <- df.sliced.wfs[df.sliced.wfs$year == "2030" & !(df.sliced.wfs$iso3 %in% get.region),]
+unique(df.countries$country) # check if only countries remain in the dataframe
+
+df.region <- df.sliced.wfs[df.sliced.wfs$year == "2030" & df.sliced.wfs$iso3 %in% get.region,]
+unique(df.region$country) # check if only country groups remain in the dataframe
+
+df.incomeclass <- df.sliced.wfs[df.sliced.wfs$year == "2030" & 
+                                  df.sliced.wfs$iso3 %in% c("HIGH_INCOME", "UPPER_MID_INCOME", "LOWER_MID_INCOME", "LOW_INCOME"),]
+
+df.annexes <- df.sliced.wfs[df.sliced.wfs$year == "2030" & 
+                              df.sliced.wfs$iso3 %in% c("ANNEX_1", "ANNEX_2", "NON_ANNEX_1"),]
+
+df.big6 <- df.sliced.wfs[df.sliced.wfs$year == "2030" & 
+                           df.sliced.wfs$iso3 %in% big6,]
+```
+
+```{r}
+# as proxy of absolute responsibility, we look at cumulative emissions until 2030
+#* relative responsibility = country cum emissions/sum of global cum. emissions
+## create cumulative emissions variable
+
+cum_base_emissions <- aggregate(df.sliced.wfs$base_emissions_mtco2e, 
+                                by = list(df.sliced.wfs$iso3), FUN=sum)
+colnames(cum_base_emissions)[1] <- "iso3"
+colnames(cum_base_emissions)[2] <- "cum_base_emissions_mtco2e"
+
+# map on cumulative emissions
+df.countries$cum_base_emissions_mtco2e <- 
+  cum_base_emissions$cum_base_emissions_mtco2e[match(df.countries$iso3, cum_base_emissions$iso3)]
+
+df.region$cum_base_emissions_mtco2e <- 
+  cum_base_emissions$cum_base_emissions_mtco2e[match(df.region$iso3, cum_base_emissions$iso3)]
+
+df.big6$cum_base_emissions_mtco2e <- 
+  cum_base_emissions$cum_base_emissions_mtco2e[match(df.big6$iso3, cum_base_emissions$iso3)]
+
+#* to understand current capacity compared against projected effort, we look at current rather than
+#* projected economic size, for this we take 2019 USD PPP as a proxy.
+## extract 2019 GDP into new df
+
+cum_base_emissions$GDP_blnUSDPPP <- df.sliced.wfs[match(df.sliced.wfs$iso3, cum_base_emissions$iso3) & df.sliced.wfs$year == 2019, "gdp_blnUSDPPP"]
+```
+
+
+# 1. Assessing grandfathering
+
+We first look at the baseline cumulative emissions (proxy responsibility) and respective GDP per capita PPP (proxy capacity). This give us an overview of the proportionality of emissions and economic size.
+
+```{r echo=TRUE, warning=FALSE}
+## --- plot preview --- ##
+
+ggplot(df.countries) +
+  geom_col(aes(x = forcats::fct_reorder(iso3, cum_base_emissions_mtco2e), y = cum_base_emissions_mtco2e),
+           fill = "#004876",
+           color = "#001f33") +
+  geom_point(aes(x = forcats::fct_reorder(iso3, cum_base_emissions_mtco2e), y = gdp_blnUSDPPP),
+             color = "#ff6718",
+             shape = 18,
+             size = 2) +
+  annotate("text", x = 1, y = 600000, label = "MtCO2e", size = 3, hjust = 0) +
+  annotate("text", x = 184, y = 600000, label = "USD", size = 3, hjust = 0) +
+  annotate("point", x = 10, y = 400000, shape = 15, size = 2.5, colour = "#004678") +
+  annotate("text", x = 13, y = 400000, label = "Emissions (MtCO2e)", size = 3, hjust = 0) +
+  annotate("point", x = 10, y = 320000, shape = 18, size = 2.5, colour = "#ff6718") +
+  annotate("text", x = 13, y = 320000, label = "GDP (USD)", size = 3, hjust = 0) +
+  scale_y_continuous(trans = scales::modulus_trans(p= .4),
+                     labels = label_comma(),
+                     expand = c(0, 0),
+                     sec.axis = sec_axis(trans = ~., name = "bln USD", labels = label_comma())) +
+  scale_x_discrete(guide = guide_axis(check.overlap = T)) +
+  theme(panel.background = element_blank(),
+        text = element_text(color = "black"),
+        axis.text.x = element_text(angle = 90, 
+                                   size = 7,
+                                   color = "black"),
+        axis.text.y = element_text(size = 8,
+                                   color = "black"),
+        axis.title = element_blank(),
+        axis.ticks.y = element_blank())
+ggsave("fig2_3.svg", width = 15.6, height = 9.64, unit = "cm", device = "svg")
+
+# plot bivariate baseline cumulative emissions (proxy responsibility) and respective GDP per capita PPP (proxy capacity)
+
+country_to_label_1 = c("USA", "CHK", "RUS", "IND", "GBR", "JPN", "DEU", "FRA", "CAN", "BRA", "PAK",
+                       "QAT", "IRL", "SGP", "LUX", "COK", "LIE", "MCO")
+
+ggplot(df.countries, aes(x = gdp_blnUSDPPP/pop_mln, y = cum_base_emissions_mtco2e, label = iso3)) + 
+  geom_density2d(color = "#8FAAE5", 
+                 alpha = 0.5) +
+  geom_point(shape = 19,
+             color = "#004678",
+             alpha = .7
+             ) +
+ geom_point(data = highlight_df,
+            aes(x = gdp_blnUSDPPP/pop_mln, y = cum_base_emissions_mtco2e, label = iso3),
+            shape = 19,
+            color = "#ff6718"
+           ) +
+  geom_text(data =  df.countries[df.countries$iso3 %in% country_to_label_1,],
+            aes(x = gdp_blnUSDPPP/pop_mln, y = cum_base_emissions_mtco2e, label = iso3),
+            check_overlap = T, 
+            size = 2.7,
+            hjust = -.3) +  xlab("'000 USD") +
+  geom_text(data =  df.countries[df.countries$iso3 == "MYS",],
+            aes(x = gdp_blnUSDPPP/pop_mln, y = cum_base_emissions_mtco2e, label = iso3),
+            check_overlap = T, 
+            size = 2.7,
+            hjust = -.3,
+            color = "#ff6718") +
+  annotate("text", x = 0, y = 600000, label = "MtCO2e", size = 3) +
+  scale_y_continuous(trans = modulus_trans(.5), labels = scales::comma) +
+  scale_x_continuous(limits = c(0,300)) +
+  theme(panel.background = element_blank(),
+        axis.line.x = element_line(linewidth = .5),
+        axis.ticks.y = element_blank(), 
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(hjust = 1, size = 9))
+ggsave("fig2.3.2.svg", device = "svg", width = 14, height = 9, unit = "cm")
+
+```
+
+This is easier to observe in a bivariate plot, where the fitted line shows more or less diagonal proportionality, albeit a skewed distribution. This skew indicates a few countries have emitted disproportionately more than the collective of other countries, most of which also have smaller economic sizes.
+
+```{r echo=TRUE, warning=FALSE}
+# plot bivariate point graph
+
+ggplot(df.countries, aes(x = cum_base_emissions_mtco2e, y = gdp_blnUSDPPP, label = iso3)) +
+  geom_point(shape = 21) +
+  geom_smooth(method = "lm",
+              linewidth = .6,
+              color = "#ff8674") +
+  geom_text(check_overlap = T, 
+            size = 3,
+            hjust = -.3) +
+  theme(panel.background = element_blank(),
+        )
+```
+
+Because of the high responsibility and capacity of a few countries, we assume the distribution of allocated burden/effort to also be skewed. However, we check if the distribution is positively or negatively skewed. As higher share of burden should accrue to the higher responsible (which are a few), we expect a fair burden sharing to have a long right tail, with higher shares accruing to little. We also check if the distribution of cumulative emissions (responsibility) is similar to the distribution of allocation.
+
+```{r echo=TRUE, warning=FALSE}
+# Show distribution curve of baseline emissions with distribution curve of allocation
+
+ggplot(df.countries) +
+  geom_density(aes(x = fs_rdxn_mtco2e),
+               color = "#004876",
+               linewidth = .8) +
+  geom_density(aes(x = cum_base_emissions_mtco2e),
+               color = "#ff8674",
+               linewidth = .8) +
+  scale_y_continuous(limits = c(0, 0.15)) +
+  scale_x_continuous(trans = scales::modulus_trans(p= .25), 
+                     labels = label_comma(),
+                     breaks = breaks_extended(10),
+                     expand = c(Inf, 0)) +
+  annotate("text", x = 20, y = 0.1, label = "Allocated burden", size = 3, hjust = 0, colour = "#004678") +
+  annotate("text", x = 5000, y = 0.03, label = "Responsibility", size = 3, hjust = 0, colour = "#ff6718") +
+  labs(x = "MtCO2e", y = "Density") +
+  theme(panel.background = element_blank(),
+        text = element_text(color = "black"),
+        axis.line.x = element_line(),
+        axis.text.x = element_text(angle = 90),
+        axis.ticks.y = element_blank(),
+        axis.text = element_text(color = "black"),
+        axis.title = element_text(angle = 0,
+                                  hjust = 1,
+                                  size = 9))
+ggsave("fig2_4.svg", width = 15.6, height = 9.64, unit = "cm", device = "svg")
+
+```
+
+The distribution of fair share (blue density curve) follows but exhibit a more skewed distribution when compared to cumulative emissions distribution. This means that a higher amount of emissions reduction (axis x) is accorded to very few countries, while most countries (as the peak of the density curve) take on less burden.
+
+We also plot bivariate kernel density to show the spread of countries' responsibility and their fair share parity.
+
+```{r echo=TRUE, warning=FALSE}
+# plot distribution of fair share reduction
+
+options(scipen = 999)
+
+# plot bivariate distribution of fair shares and emissions
+
+ggplot(df.countries, aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3)) +
+  geom_density2d() +
+  geom_point(shape = 21) +
+  geom_text(check_overlap = T, 
+            size = 3,
+            hjust = -.3) +
+  theme(panel.background = element_blank())
+
+# insert MYS highlight
+highlight_df <- df.countries %>% 
+             filter(iso3 == "MYS")
+
+# only label countries with extreme values
+country_to_label = c("USA", "CHK", "RUS", "IND", "GBR", "JPN", "DEU", "FRA", "CAN", "UKR", "PAK")
+
+#boxcox-transform to show details in 1 - 100 MtCO2e
+ggplot(df.countries, aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3)) + 
+  geom_density2d(color = "#8FAAE5", 
+                 alpha = 0.5) +
+  geom_point(shape = 19,
+             color = "#004678",
+             alpha = .7
+             ) +
+   geom_point(data = highlight_df,
+              aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+              shape = 19,
+              color = "#ff6718"
+             ) +
+  geom_text(data =  df.countries[df.countries$iso3 %in% country_to_label,],
+            aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+            check_overlap = T, 
+            size = 2.7,
+            hjust = -.3) +
+  geom_text(data =  df.countries[df.countries$iso3 == "MYS",],
+            aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+            check_overlap = T, 
+            size = 2.7,
+            hjust = -.3,
+            color = "#ff6718") +
+  annotate("text", x = 0, y = 600000, label = "MtCO2e", size = 3) +
+  xlab("MtCO2e") +
+  scale_x_continuous(trans = modulus_trans(.25), labels = scales::comma) +
+  scale_y_continuous(trans = modulus_trans(.25), labels = scales::comma) +
+  theme(panel.background = element_blank(),
+        axis.line.x = element_line(linewidth = .5),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(hjust = 1, size = 9))
+ggsave("fs_emi_cntrs_bivariate_distr.svg", device = "svg", width = 15, height = 11, unit = "cm")
+```
+
+Both distribution plot indicate higher fair share reduction for higher emissions countries. There are caveats to this approach, (1) country oriented distribution omit status of parties. For example, EU27 negotiate as a group in UNFCCC, we thus have to consider them as a collective. We do this in the below section. (2) Another caveat is that we assess the amount of reduction that is allocated at 2030, it is possible to cumulatively aggregate the annual reduction to give a more complete view of allocation, but we assess only the end-point of fair share for this analysis.
+
+# 2. Assessing redistribution
+
+### Redistributive power of fair share framework
+In a lot of ways, country emissions distribution behave like an income distribution, where a small percentage of individuals and countries emit (earn) a lot more than most. Following the lorenz method, we can imagine emissions as an income distribution, and fair share as a tax. A fair tax system would be progressive, and allocate more burden on those who have appropriated more carbon space. We check this by finding the Gini coefficient, where a more progressive allocation would align to or be more concave than the normal lorenz curve ([Norregaard, 1990](https://www.oecd.org/tax/public-finance/35372059.pdf)). 
+
+```{r echo=TRUE, warning=FALSE}
+## checking between emissions baseline (abs emission) and fair share allocation (tax)
+ggplot(df.countries) +
+  stat_lorenz(aes(x = fs_rdxn_mtco2e),
+              color = "#004876",
+              linewidth = .5) +
+  stat_lorenz(aes(x = cum_base_emissions_mtco2e),
+              color = "#ff6718",
+              linewidth = .5) +
+  geom_abline(color = "gray",
+              linewidth = .5) +
+  xlab("MtCO2e") + 
+  annotate_ineq(df.countries$fs_rdxn_mtco2e,
+                size = 2.8) +
+  annotate_ineq(df.countries$cum_base_emissions_mtco2e,
+                y = 0.9,
+                size = 2.8) +
+  annotate("text", x = .85, y = .08, label = "Allocated burden", size = 2.8, hjust = 0, colour = "#004678") +
+  annotate("text", x = .71, y = .23, label = "Responsibility", size = 2.8, hjust = 0, colour = "#ff6718") +
+  theme(panel.background = element_blank(),
+        text = element_text(size = 10, color = "black"),
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(hjust = 1),
+        axis.line.x = element_line(linewidth = .5),
+        axis.ticks.x = element_line(linewidth = .5),
+        axis.ticks.y = element_blank())
+ggsave("fig2.6.svg", device = "svg", width = 14, height = 9, unit = "cm")
+
+
+## checking between pre-tax and post-tax emissions
+ggplot(df.countries) +
+  stat_lorenz_generalized(aes(x = allocation_MtCO2),
+                          color = "darkgreen") +
+  stat_lorenz(aes(x = cum_base_emissions_mtco2e),
+              color = "#ff8674") +
+  annotate_ineq(df.countries$allocation_MtCO2) +
+  annotate_ineq(df.countries$cum_base_emissions_mtco2e,
+                y = 0.9) +
+  geom_abline(color = "gray",
+              linewidth = .75) +
+  xlab("MtCO2e") + 
+  theme(panel.background = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(hjust = 1),
+        axis.line.x = element_line(linewidth = .75),
+        axis.ticks.x = element_line(linewidth = .75),
+        axis.ticks.y = element_blank())
+```
+
+As shown above, the Gini coefficient of the allocated fair shares (0.9) more or less matches the cumulative baseline emissions (0.84). This means the inequality of emissions are matched with an unequal allocation of burdens that weigh down on the high emitters. This is equally the case for post-allocation emissions where Gini is higher than 1, the >1 Gini coefficient indicates that some countries has to produce negative emissions.
+However, some countries with high emissions may have also given high allowance, due to the consideration of capabilities  in the framework.
+
+# 3. Needs-based redistribution
+
+Unlike a tax system whose purpose is to redistribution and equalize social outcomes, we might expect recompensation in an effort-sharing system, where emissions of some countries are allowed to grow and some are required to make space for that growth in order to meet developmental needs. CERF based this on the capabilities of a country, defined as the income share that is above a set development threshold. We use an annual income of 7500 USD PPP as a static development threshold, we can calibrate the progressivity by staggeringly include income above this threshold to contribute to mitigation but in this analysis we do not.
+
+We analyse whether the framework accorded climate space according to the needs of a country, where the needs are 
+
+To start, we plot the emissions allowance graph for all countries.
+
+```{r echo=TRUE, warning=FALSE}
+# plot allocation graph (post-allocation emissions allowance)
+
+ggplot(df.countries) +
+  geom_col(aes(x = forcats::fct_reorder(iso3, allocation_MtCO2), y = allocation_MtCO2),
+           fill = "#004678",
+           color = "black") +
+  geom_point(aes(x = forcats::fct_reorder(iso3, allocation_MtCO2), 
+                 y = gdp_blnUSDPPP),
+             color = "#ff6718") +
+  annotate("text", x = 1, y = 30000, label = "MtCO2e", size = 3, hjust = 0) +
+  annotate("text", x = 184, y = 30000, label = "b USD", size = 3, hjust = 0) +
+  scale_y_continuous(trans = scales::modulus_trans(p= .5), 
+                     sec.axis = sec_axis(trans = ~., name = "bln USD PPP")) +
+  scale_x_discrete(guide = guide_axis(check.overlap = T))+
+  theme(panel.background = element_blank(),
+        axis.text.x = element_text(angle = 90, size = 6),
+        axis.title = element_blank(),
+        axis.ticks.y = element_blank(),
+        text = element_text(color = "black"))
+
+# bivariate plot of gdp per capita and emission allowance
+
+options(scipen = 999)
+
+ggplot(df.countries, aes(x = gdp_blnUSDPPP/pop_mln, y = allocation_MtCO2, label = iso3)) + 
+  geom_density2d(color = "#8FAAE5", 
+                 alpha = 0.5) +
+  geom_point(shape = 19,
+             color = "#004678",
+             alpha = .7
+             ) +
+ geom_point(data = highlight_df,
+            aes(x = gdp_blnUSDPPP/pop_mln, y = allocation_MtCO2, label = iso3),
+            shape = 19,
+            color = "#ff6718"
+           ) +
+  geom_text(data =  df.countries[df.countries$iso3 %in% country_to_label_1,],
+            aes(x = gdp_blnUSDPPP/pop_mln, y = allocation_MtCO2, label = iso3),
+            check_overlap = T, 
+            size = 2.8,
+            hjust = -.3) +  
+  xlab("'000 USD") +
+  geom_text(data =  df.countries[df.countries$iso3 == "MYS",],
+            aes(x = gdp_blnUSDPPP/pop_mln, y = allocation_MtCO2, label = iso3),
+            check_overlap = T, 
+            size = 3,
+            hjust = -.3,
+            color = "#ff6718") +
+  annotate("text", x = 0, y = 15000, label = "MtCO2e", size = 3) +
+  scale_y_continuous() +
+  scale_x_continuous(limits = c(0,300)) +
+  theme(panel.background = element_blank(),
+        axis.line.x = element_line(linewidth = .5),
+        axis.ticks.y = element_blank(), 
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(hjust = 1, size = 9))
+ggsave("fig2.7.2.svg", device = "svg", width = 14, height = 9, unit = "cm")
+```
+
+The emissions allowance graph shows that more than half of the world are given room to emit in 2030, wherein China and India are given the most emission space, within the constrain of carbon budget. Whereas countries like USA and those in EU27 are required to produce negative emissions to make room for growth in developing countries. 
+
+We plot below the proportion of population with income below development threshold (annual income of 7500 USD PPP) and the allocation of emissions allowance per capita.
+
+```{r echo=TRUE, warning=FALSE}
+# checking the proportion of population income share to see if China is unfairly exempted
+
+ggplot(df.countries, aes(x = forcats::fct_reorder(iso3, 1-(pop_mln_above_dl/pop_mln)), 
+                         y = 1-(pop_mln_above_dl/pop_mln))) +
+  geom_point(color = "#004876",
+             shape = 20) +
+  scale_x_discrete(guide = guide_axis(check.overlap = T))+
+  theme(panel.background = element_blank(),
+        axis.text.x = element_text(angle = 90, size = 5),
+        axis.title = element_blank())
+
+# plot density curve to see distribution of countries and their needs
+
+ggplot(df.countries, aes(x = 1-(pop_mln_above_dl/pop_mln))) +
+  geom_density(color = "#004876",
+               fill = "#8cbede",
+               linewidth = 0.8) +
+  labs(y = "MtCO2", x = "ratio") +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 1.5)) +
+  scale_x_continuous(expand = c(0,0)) +
+  theme(panel.background = element_blank(),
+        axis.title.x = element_text(hjust =1),
+        axis.title.y = element_text(angle = 0,
+                                    hjust = 1),
+        axis.ticks.y = element_blank(),
+        axis.line.x = element_line(linewidth = .75))
+
+```
+
+The density plot shows the distribution of countries' developmental needs (proportion of income below development threshold) is **bimodal**. This meant that more countries are in the extremes of having most of their population below development threshold and above development threshold, while the remaining have half of their population needing developmental space. A fair share framework should accord those with more developmental needs (x > 0.5) emissions allowance, and those with 
+
+```{r echo=TRUE, warning=FALSE}
+
+country_to_label_2 = c("USA", "CHK", "RUS", "IND", "GBR", "JPN", "DEU", "FRA", "CAN", "BRA", "PAK",
+                       "QAT", "IRL", "SGP", "LUX", "COK", "LIE", "MCO", "NGA", "BGD", "IRQ", "IDN")
+
+ggplot(df.countries, aes(x = 1-(pop_mln_above_dl/pop_mln), y = allocation_MtCO2, label = iso3)) +
+  geom_density2d(color = "#8FAAE5", 
+                 alpha = 0.5) +
+  geom_point(shape = 19,
+           color = "#004678",
+           alpha = .7
+           ) +
+  geom_point(data = highlight_df,
+            aes(x = 1-(pop_mln_above_dl/pop_mln), y = allocation_MtCO2, label = iso3),
+            shape = 19,
+            color = "#ff6718"
+           ) +
+  scale_y_continuous(trans = scales::modulus_trans(0.25)) +
+  scale_x_continuous(expand = c(0,0)) +
+  geom_text(data =  df.countries[df.countries$iso3 %in% country_to_label_2,],
+            aes(x = 1-(pop_mln_above_dl/pop_mln), y = allocation_MtCO2, label = iso3),
+            check_overlap = T, 
+            size = 2.8,
+            hjust = -.3) +
+  annotate("text", x = 0.03, y = 15000, label = "MtCO2e", size = 3, hjust = 0) +
+  xlab("ratio") +
+  theme(panel.background = element_blank(),
+        text = element_text(size = 9.5, color = "black"),
+        axis.title.x = element_text(hjust =1),
+        axis.title.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.x = element_line(linewidth = .5))
+# ggsave("fig2.8.svg", width = 14, height = 9, unit = "cm", device = "svg")
+ggsave("fig2.8.2.svg", width = 8, height = 7, unit = "cm", device = "svg")
+
+
+```
+
+However, this is not what we observe in the pattern of allowance allocation. The bivariate kernel density plot shows that countries with low capacity is given similar, albeit slightly higher emissions allowance than most high capacity countries, with exemption of high emitting northern countries (left bottom of graph: USA, GBR, EU27), China (CHK) and India (IDN).
+
+Emissions allowance is the difference between a country's absolute emissions baseline, and its reduction obligation (which is the product of RCI and baseline emissions), it is a function of the trajectory of current emissions and individual rights to emission space, population is necessary coefficient. To adjust for this we look at allowances per capita of world carbon space.
+
+```{r echo=TRUE, warning=FALSE}
+# plot emissions allcation for each individual
+
+ggplot(df.countries) +
+  geom_point(aes(x = forcats::fct_reorder(iso3, allocation_MtCO2/pop_mln), y = allocation_MtCO2/pop_mln),
+             color = "#004876") +
+  scale_x_discrete(guide = guide_axis(check.overlap = T))+
+  scale_y_continuous(limit = c(-40,40)) +
+  theme(panel.background = element_blank(),
+        axis.text.x = element_text(angle = 90, size = 5),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.x = element_line(linewidth = .75))
+```
+
+The produced plot shows that in per capita terms, the framework allocate a large part of the world the same amount of emissions allowance. This meant that the high emissions allowance accorded to China and India is a function of their big population. We plot a bivariate plot to see the relationship between capacity and per capita allowance and per capita reduction allocation.
+
+```{r echo=TRUE, warning=FALSE}
+# plot bivariate density for allocation per capita
+
+ggplot(df.countries, aes(x = 1-(pop_mln_above_dl/pop_mln), y = allocation_MtCO2/pop_mln, label = iso3)) +
+  geom_smooth(method = "lm", color = "#8FAAE5", size = .5, alpha = .4) +
+  geom_point(shape = 19,
+           color = "#004678",
+           alpha = .7
+           ) +
+scale_x_continuous() +
+ geom_text(check_overlap = T) +
+  annotate("text", x = 0, y = 50, label = "MtCO2e", size = 3, hjust = 0) +
+  xlab("ratio") +
+  theme(panel.background = element_blank(),
+        text = element_text(size = 9.5, color = "black"),
+        axis.title.x = element_text(hjust =1),
+        axis.title.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.x = element_line(linewidth = .5))
+# ggsave("fig2.8.svg", width = 14, height = 9, unit = "cm", device = "svg")
+ggsave("fig2.9.2.svg", width = 8, height = 7, unit = "cm", device = "svg")
+
+# plot bivariate density for reduction per capita
+
+ggplot(df.countries, aes(x = 1-(pop_mln_above_dl/pop_mln), y = fs_rdxn_mtco2e/pop_mln, label = iso3)) +
+  geom_smooth(method = "lm", color = "#1f1f1f", size = .5) +
+  geom_point(shape = 19,
+           color = "#004678",
+           alpha = .7
+           ) +
+scale_x_continuous() +
+geom_text(data =  df.countries[df.countries$iso3 %in% country_to_label_2,],
+            aes(x = 1-(pop_mln_above_dl/pop_mln), y = fs_rdxn_mtco2e/pop_mln, label = iso3),
+            check_overlap = T, 
+            size = 2.8,
+            hjust = -.3) +
+  annotate("text", x = 0, y = 50, label = "MtCO2e", size = 3, hjust = 0) +
+  xlab("ratio") +
+  theme(panel.background = element_blank(),
+        text = element_text(size = 9.5, color = "black"),
+        axis.title.x = element_text(hjust =1),
+        axis.title.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.line.x = element_line(linewidth = .5))
+# ggsave("fig2.8.svg", width = 14, height = 9, unit = "cm", device = "svg")
+ggsave("fig2.9.2.svg", width = 8, height = 7, unit = "cm", device = "svg")
+
+
+```
+
+The graph shows that per capita allocation smoothens out high emissions allowance for big pop. countries, as every individual in the middling countries receive similar allowance to emit owed to their responsibility. Interestingly, countries with low population like Qatar and Kuwait receive a higher per capita allowance irrespective of their capacity. 
+
+However, when we look at per capita reduction allocation and its relationship with capacity, the curve exhibit a proportional pattern where higher capacity (lower population under development threshold) reduce more of their emissions.
+
+# Annex. bloc analysis
+
+As mentioned above, some countries negotiate as a bloc therefore their fair shares should be accounted together. We compare first the generic groupings of big 6 emitters.
+
+```{r echo=TRUE, warning=FALSE}
+
+df.big6.tolong <- df.big6[c("iso3", "allocation_MtCO2", "fs_rdxn_mtco2e")] #extract variable to pivot
+df.long.big6 <- df.big6.tolong %>% 
+                  pivot_longer(!iso3,
+                               names_to = "variable",
+                               values_to = "value")
+
+# plot bar plot to show allowance and reduction size among big 6
+
+ggplot(df.long.big6) +
+  geom_col(aes(x = iso3, y = value, fill = variable),
+           position = "dodge",
+           width = .5) +
+  geom_point(data = df.big6, aes(x = iso3, y = gdp_blnUSDPPP),
+             color = "maroon",
+             size = 2) +
+  scale_fill_manual(values = c("#004768", "#ff8674")) +
+  scale_y_continuous(sec.axis = sec_axis(trans = ~., name = "bln USD")) +
+  geom_hline(yintercept = 0)+
+  theme(panel.background = element_blank(),
+        axis.text.x = element_text(angle = 90),
+        axis.ticks = element_blank(),
+        panel.grid.major.y = element_line(color = "lightgrey"))
+```
+
+As shown in the graph, China and India receives the biggest emissions allowance for their respective developmental needs. However, it is arguable there exist between them a level of grandfathering as India has a higher population count and higher population below development threshold. However, it is also ture that China is allocated with a higher reduction obligation. While EU27, USA, and GBR all are required to reduce their emissions to negative, Britain is allocated with a lower reduction obligation. This is likely due to unaccounted cumulative responsibility of the country over its colonial history. For this we look at the relationship  between historical cumulative emissions and reduction obligation.
+
+```{r echo=TRUE, warning=FALSE}
+ggplot(df.big6, aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3)) +
+  geom_smooth(method = "lm",
+              color = "#004768") + 
+  geom_point(shape = 20,
+             size = 3,
+             color = "#ff8674") +
+  geom_text(hjust = "inward") +
+  scale_x_continuous(expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  theme(panel.background = element_blank(),
+        axis.text.x = element_text(angle = 90))
+```
+

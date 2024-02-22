@@ -1,0 +1,49 @@
+"0","```r
+## rebase NDC to total emissions excl. LULUCF baseline
+
+### IDN [31.89% - 43.20% below BAU]
+NDC.rebase2.idn.uncon <- df.compare.lulucf[df.compare.lulucf$iso3 == \"IDN\" & df.compare.lulucf$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    \"base_netemissions_mtco2e\"]*(1-.3189)
+NDC.rebase2.idn.con <- df.compare.lulucf[df.compare.lulucf$iso3 == \"IDN\" & df.compare.lulucf$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                  \"base_netemissions_mtco2e\"]*(1-.4320)
+
+### THA [30% - 40% below BAU]
+NDC.rebase2.tha.uncon <- df.compare.lulucf[df.compare.lulucf$iso3 == \"THA\" & df.compare.lulucf$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    \"base_netemissions_mtco2e\"]*(1-.30)
+NDC.rebase2.tha.con <- df.compare.lulucf[df.compare.lulucf$iso3 == \"THA\" & df.compare.lulucf$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                  \"base_netemissions_mtco2e\"]*(1-.40)
+
+### USA [30% - 40% below BAU]
+NDC.rebase2.usa.lower <- df.compare.lulucf[df.compare.lulucf$iso3 == \"USA\" & df.compare.lulucf$year == 2030, # rebase lower NDC to CERc BAU in 2030
+                                    \"base_netemissions_mtco2e\"]*(1-.50)
+NDC.rebase2.usa.upper <- df.compare.lulucf[df.compare.lulucf$iso3 == \"USA\" & df.compare.lulucf$year == 2030, # rebase upper NDC to CERc BAU in 2030
+                                    \"base_netemissions_mtco2e\"]*(1-.52)
+
+### MYS [45% below 2005 EI]
+#### rebase EI2005 to CERc emissions baseline
+EI2005cerc.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == \"MYS\" & df.compare.lulucf$year == 2005, \"base_netemissions_mtco2e\"]/GDP2005
+EI2030cerc.lulucf <- EI_Ef(EI2005cerc.lulucf, -0.45) # find emissions intensity based on CERC 2005 figures
+
+NDC.rebase2.mys <- EI2030cerc.lulucf*GDP2030
+
+## add column with rebased NDC figures
+
+df.compare.lulucf <- df.compare.lulucf %>% 
+  mutate(rb2_NDCuncon_mtco2e = 
+           case_when(
+             iso3 == \"IDN\" & year == 2030 ~ NDC.rebase2.idn.uncon,
+             iso3 == \"THA\" & year == 2030 ~ NDC.rebase2.tha.uncon,
+             iso3 == \"USA\" & year == 2030 ~ NDC.rebase2.usa.lower,
+             iso3 == \"MYS\" & year == 2030 ~ NDC.rebase2.mys,
+             .default = NA)
+  )
+df.compare.lulucf <- df.compare.lulucf %>% 
+  mutate(rb2_NDCcon_mtco2e = 
+           case_when(
+             iso3 == \"IDN\" & year == 2030 ~ NDC.rebase2.idn.con,
+             iso3 == \"THA\" & year == 2030 ~ NDC.rebase2.tha.con,
+             iso3 == \"USA\" & year == 2030 ~ NDC.rebase2.usa.upper,
+             .default = NA)
+  )
+
+```"

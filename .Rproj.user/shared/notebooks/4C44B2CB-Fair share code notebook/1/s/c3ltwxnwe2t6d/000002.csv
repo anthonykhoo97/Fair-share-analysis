@@ -1,0 +1,35 @@
+"0","```r
+## --- output reduction levels for fair share and NDCs --- ##
+
+# total emissions excl. LULUCF baseline for 2030
+## fair share reductions
+fs.rdxn.idn <- df.compare[df.compare$iso3 == \"IDN\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - 
+  df.compare[df.compare$iso3 == \"IDN\" & df.compare$year == \"2030\", \"allocation_MtCO2\"]
+fs.rdxn.tha <- df.compare[df.compare$iso3 == \"THA\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - 
+  df.compare[df.compare$iso3 == \"THA\" & df.compare$year == \"2030\", \"allocation_MtCO2\"]
+fs.rdxn.usa <- df.compare[df.compare$iso3 == \"USA\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - 
+  df.compare[df.compare$iso3 == \"USA\" & df.compare$year == \"2030\", \"allocation_MtCO2\"]
+fs.rdxn.mys <- df.compare[df.compare$iso3 == \"MYS\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - 
+  df.compare[df.compare$iso3 == \"MYS\" & df.compare$year == \"2030\", \"allocation_MtCO2\"]
+
+##* recall NDC reductions calculations from above
+##* use rebase 1
+
+NDC.rdxn.uncon.rebase1.idn <- df.compare[df.compare$iso3 == \"IDN\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - NDC.rebase1.idn.uncon 
+NDC.rdxn.con.rebase1.idn <- df.compare[df.compare$iso3 == \"IDN\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - NDC.rebase1.idn.con
+NDC.rdxn.uncon.rebase1.tha <- df.compare[df.compare$iso3 == \"THA\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - NDC.rebase1.tha.uncon
+NDC.rdxn.con.rebase1.tha <- df.compare[df.compare$iso3 == \"THA\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - NDC.rebase1.tha.con
+NDC.rdxn.lower.rebase1.usa <- df.compare[df.compare$iso3 == \"USA\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - NDC.rebase1.usa.lower
+NDC.rdxn.upper.rebase1.usa <- df.compare[df.compare$iso3 == \"USA\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - NDC.rebase1.usa.upper
+NDC.rdxn.rebase1.mys <- df.compare[df.compare$iso3 == \"MYS\" & df.compare$year == \"2030\", \"base_emissions_mtco2e\"] - NDC.rebase1.mys
+
+# output dataframe of NDC - rebase1 - fair share comparisons
+fairshare.output <- data.frame(country  = c(\"IDN\", \"THA\", \"USA\",\"MYS\"),
+                 NDC.emi.rdxn.uncon = c(NDC.rdxn.uncon.idn, NDC.rdxn.uncon.tha, NDC.rdxn.lower.US, NDC.rdxn.MYS),
+                 NDC.emi.rdxn.con = c(NDC.rdxn.con.idn, NDC.rdxn.con.tha, NDC.rdxn.upper.US, NDC.rdxn.MYS),
+                 NDC.rebase.uncon = c(NDC.rdxn.uncon.rebase1.idn,NDC.rdxn.uncon.rebase1.tha,NDC.rdxn.lower.rebase1.usa,NDC.rdxn.rebase1.mys),
+                 NDC.rebase.con = c(NDC.rdxn.con.rebase1.idn,NDC.rdxn.con.rebase1.tha,NDC.rdxn.upper.rebase1.usa,NA),
+                 fairshare.rdxn = c(fs.rdxn.idn, fs.rdxn.tha, fs.rdxn.usa, fs.rdxn.mys)
+                 )
+print(fairshare.output)
+```"

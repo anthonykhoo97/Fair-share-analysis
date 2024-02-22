@@ -1,0 +1,595 @@
+---
+title: "Fair share analysis following CERc method"
+author: "Khoo Wei Yang"
+date: "14/09/2023"
+output:
+  html_document:
+    df_print: paged
+  html_notebook:
+    theme: flatly
+---
+
+In this analysis, I attempt to compare and analyse fair shares of climate mitigation effort following the Climate Equity Reference Framework. I use the [web-based calculator CERc](https://calculator.climateequityreference.org/) and its database last updated at May 2022, you can access the database [here](https://github.com/climateequityreferenceproject/cerc-coredb/tree/master).
+Fair share allocation is calculated as the fair amount of the total global emissions required to be reduced by each country. Allocation starts from Y2020. More details of the method can be found [here](https://climateequityreference.org/about-the-climate-equity-reference-project-effort-sharing-approach/) and [here](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/O3H22Z).
+
+I intend to compare the fair shares of Indonesia, Thailand, US, and Malaysia as a cross-country reference for developed and developing countries. I also compare the NDCs of the countries against their fair share. I only look at the NDC GHG emissions target for Y2030. Net-zero emissions (of CO2 or other GHGs) by 2050 or later are not included.
+
+I also look at fair shares of groupings and testing the fair share model for three equity principles: polluters pay, capable pay, and need-based principle CERF method explicitly assume individual needs-based exemption by using a development threshold, which exempts national income share considered below the threshold (annual USD 7500 PPP) from liable to contribute to climate mitigation.
+
+Our settings are listed in the annex.
+
+Following are the steps: </br>
+1. I start by calculating the NDCs for each country and comparing against their CERF fair shares. </br>
+2. I then rebase the NDCs (as a % of the BAU) to the CERF baseline (def here) to create comparability. </br>
+3. I do the same with NDC with LULUCF inclusive GHG emissions to create comparability for NDC that use LULUCF. </br>
+4. I also test for grandfathering (polluters pay) by checking if high-emtting countries are allocated more obligations. </br>
+5. I test for need-based principle by checking if low-emitting LDCs are given higher carbon space as a share of total remaining carbon budget.
+
+Caveat: </br>
+1. The analysis did not account for difference in scope of GHG, most of the NDCs in comparison cover all of Kyoto GHGs (CO2, CH4, N2O, HFCs. PFCs, SF6, NF3) except for IDN (only CO2, CH4, N2O) </br>
+2. I do not cover net-zero emissions for each country until 2050 due to lack of data.
+
+```{r include=FALSE}
+## --- getting the data ready --- ##
+
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+library(forcats)
+
+# read csv
+df <- read.csv(file="C:/Users/khoo.weiyang/OneDrive - Khazanah Research Institute/KRI-Work/Climate/Resources/02 Data/fair-share-analysis/data/cerc_all_output_1694574828.csv") # import dataset excl. lulucf
+print(df)
+
+df.lulucf <- read.csv(file="C:/Users/khoo.weiyang/OneDrive - Khazanah Research Institute/KRI-Work/Climate/Resources/02 Data/fair-share-analysis/data/cerc_all_output_1694669254_LULUCF.csv") # import dataset incl. lulucf [disabled on web api]
+print(df.lulucf)
+
+```
+
+# Getting the data ready
+```{r}
+# slice dataframe to fit
+df.sliced <- df %>% slice(-(1:29))
+names(df.sliced) <- df.sliced[1,]
+df.sliced <- df.sliced[-1,]
+
+df.lulucf.sliced <- df.lulucf %>% slice(-(1:29))
+names(df.lulucf.sliced) <- df.lulucf.sliced[1,]
+df.lulucf.sliced <- df.lulucf.sliced[-1,]
+
+# extract for MYS, IDN, THA, and USA
+fs.countries = c("MYS","IDN","THA","USA")
+df.fs <- df.sliced %>%  filter(iso3 %in% fs.countries)
+df.lulucf.fs <- df.lulucf.sliced %>%  filter(iso3 %in% fs.countries)
+
+# assign correct object type to columns
+df.fs[,c(3:21)] <- sapply(df.fs[c(3:21)], as.numeric)
+str(df.fs)
+
+df.lulucf.fs[,c(3:21)] <- sapply(df.lulucf.fs[c(3:21)], as.numeric)
+str(df.lulucf.fs)
+```
+
+# Computing the NDCs
+
+### NDC for Y2030
+Some information on compared NDCs.
+
+**IDN** </br>
+BAU scenario - 2869 MtCO2e </br>
+31.89% unconditional </br>
+43.20% conditional
+
+**THA** [NDC 2022](https://unfccc.int/sites/default/files/NDC/2022-11/Thailand%202nd%20Updated%20NDC.pdf) </br>
+BAU scenario - 555 MtCO2e </br>
+30% unconditional below BAU scenario </br>
+40% conditional
+
+**USA** [NDC 2021](https://unfccc.int/sites/default/files/NDC/2022-06/United%20States%20NDC%20April%2021%202021%20Final.pdf) </br>
+2005 levels net emissions - 6635 MtCO2e </br>
+50 -52% reduction below 2005 net emissions levels </br>
+
+**MYS** [source: [NC](https://unfccc.int/sites/default/files/resource/Malaysia%20NC3%20BUR2_final%20high%20res.pdf), [BUR4](https://unfccc.int/sites/default/files/resource/MY%20BUR4_2022.pdf)] </br>
+ttl emissions 2005 - 250.044 </br>
+ttl BAU emissions 2030 - 530.29108 (549.53451) # (incl. LULUCF emissions only no removal) </br>
+net emissions 2005 - 52.967 </br>
+net BAU emissions 2030 - 302.88559 </br>
+GDP 2005 (cst 2015) - 729.82 b MYR </br>
+GDP 2022 - 1507.31 b MYR </br>
+GDP 2030 - 2143.55 b MYR </br>
+45% (EI2005 - EI2030)
+
+Calculating the NDC for IDN, THA, and USA is pretty straightforward as the emissions reduction quotient is relative to a reported annual or BAU scenario emissions level.
+
+Because all NDC targets in our comparison covers "economy-wide" emissions, LULUCF emi/rem and Non-CO2 are included in the BAU.
+```{r}
+## ---  NDC - fair share comparisons --- ##
+
+#### compute NDC - emissions allocation
+
+NDC.uncon.idn = 2869*(1-.3189)
+NDC.con.idn = 2869*(1-.4320)
+NDC.uncon.tha = 555*(1-.3)
+NDC.con.tha = 555*(1-.4)
+NDC.lower.US = 6635*(1-.5)
+NDC.upper.US = 6635*(1-.52)
+
+#### compute NDC - emissions reduction
+
+NDC.rdxn.uncon.idn = 2869*.3189
+NDC.rdxn.con.idn = 2869*.4320
+NDC.rdxn.uncon.tha = 555*.3
+NDC.rdxn.con.tha = 555*.4
+NDC.rdxn.lower.US = 6635*.5
+NDC.rdxn.upper.US = 6635*.52
+```
+
+Malaysian NDC is based on emissions intensity relative to base year, we can work backwards to obtain the NDC target emissions level at 2030, which requires knowledge of base year emissions and GDP as well as future GDP.
+I project GDP based on IMF World Economic Outlook 2023's forecast of 4.5% annual growth (CAGR for 8 years). We use 2015 constant price GDP for 2005 and 2022 from IMF's database.
+For country reported 2005 emissions, we use most recent BUR4 updated figures. This is different from the earlier NC3 figures.
+Of course, to rebase this to CERF baseline, we will need to work backwards with CERF 2005 emissions data.
+```{r}
+#### MYS emissions intensity-based NDC calc
+
+# set up CAGR and EI functions #
+
+CAGR_FV <- function(CAGR, present_value, yrs) {
+  final_value = present_value * (CAGR / 100 + 1)^yrs
+  return(final_value)
+}
+
+EI_Ef <- function(Ei, delta) {
+  # Ef = emissions intensity at final year, 2030
+  # Ei = emissions intensity at initial year, 2005
+  # delta = difference between compared final and initial year, 0.45
+  Ef = Ei*(delta + 1)
+  return(Ef)
+}
+
+## find MYS NDC emissions level
+
+GDP2005<- 729.82
+GDP2030 <- CAGR_FV(4.5, 1507.31, 8) # find GDP2030 based on WEO forecast 4.5% growth rate
+
+BUR4.emi2005 <- 250.044 
+
+EI2005 <- BUR4.emi2005/GDP2005
+EI2030 <- EI_Ef(EI2005, -0.45) # find emissions intensity based on known 2005 figures
+
+BUR4.emi2030 <- EI2030*GDP2030 # find absolute 2030 emissions
+
+NDC.MYS <- BUR4.emi2030 # NDC 2030 emissions level is based on EI 45% lower than 2005  
+
+BUR4.netemi2005 <- 52.967
+
+EI2005.lulucf <- BUR4.netemi2005/GDP2005 # find emissions intensity based on known 2005 netted figures
+EI2030.lulucf <- EI_Ef(EI2005.lulucf, -0.45) # find emissions intensity based on known 2005 netted figures
+
+BUR4.netemi2030 <- EI2030.lulucf*GDP2030 # find absolute 2030 emissions
+
+NDC.MYS.lulucf <- BUR4.netemi2030 # NDC 2030 emissions level is based on EI 45% lower than 2005
+
+#### compute NDC - emissions reduction for MYS
+
+NDC.rdxn.MYS <- 530.29108 - BUR4.emi2030 # BUR BAU
+NDC.rdxn.MYS.lulucf <- 302.88559 - BUR4.netemi2030
+```
+
+```{r echo=TRUE}
+## --- create comparison table --- ##
+
+df.compare <- df.fs
+
+## --- add NDC column for all countries --- ##
+# create base and net-CO2 emissions line [fossil CO2 +- LULUCF removals]
+
+df.compare <- df.compare %>% mutate(base_emissions_mtco2e = fossil_CO2_MtCO2+NonCO2_MtCO2e)
+df.compare <- df.compare %>% mutate(net_emissions_mtco2e = fossil_CO2_MtCO2+NonCO2_MtCO2e+LULUCF_MtCO2)
+
+# add NDC value to new column
+
+df.compare <- df.compare %>% 
+  mutate(NDCuncon_emissions_target_mtco2e = 
+           case_when(
+                      iso3 == "IDN" & year == 2030 ~ NDC.uncon.idn,
+                      iso3 == "THA" & year == 2030 ~ NDC.uncon.tha,
+                      iso3 == "USA" & year == 2030 ~ NDC.lower.US,
+                      iso3 == "MYS" & year == 2030 ~ NDC.MYS,
+                      .default = NA)
+         )
+df.compare <- df.compare %>% 
+  mutate(NDCcon_emissions_target_mtco2e = 
+           case_when(
+             iso3 == "IDN" & year == 2030 ~ NDC.con.idn,
+             iso3 == "THA" & year == 2030 ~ NDC.con.tha,
+             iso3 == "USA" & year == 2030 ~ NDC.upper.US,
+             .default = NA)
+        )
+```
+# Rebasing the NDCs for comparability
+I now have to rebase the NDC quotients from the country report BAU to CERF baseline, which uses the PRIMP-hist dataset. Deeper technical documentation of the dataset is found here.
+
+I do this because the BAU reported by countries can be different from the CERF baseline, which the calculator uses to derive fair share. By comparing the targetted emissions reduction level relative to baseline with fair share reduction level relative to another baseline can be misguiding. Because we do not perform calculations of fair share allocation based on BAU due to the absence of country reported data on deep historical emissions (up to 1850, which CERF use), I do this to minimize error in comparability.
+
+This rebase exercise follows two approaches: </br>
+1. I rebase the NDC to the CERF baseline without LULUCF, this is the standard method that the calculator uses. As historical LULUCF data is highly variable and was ceased being published by PRIMAP-hist due to concerns over reliability, the standard calculator only considers total GHG emissions excluding LULUCF. </br>
+2. I rebase the NDC to CERF baseline incl. of LULUCF. This is due to the comparability issue with NDCs which considers LULUCF emi/rem.
+
+### Approach 1
+```{r}
+## --- Approach 1 rebase --- ##
+
+## rebase NDC to total emissions excl. LULUCF baseline
+
+### IDN [31.89% - 43.20% below BAU]
+NDC.rebase1.idn.uncon <- df.compare[df.compare$iso3 == "IDN" & df.compare$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    "base_emissions_mtco2e"]*(1-.3189)
+NDC.rebase1.idn.con <- df.compare[df.compare$iso3 == "IDN" & df.compare$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                    "base_emissions_mtco2e"]*(1-.4320)
+
+### THA [30% - 40% below BAU]
+NDC.rebase1.tha.uncon <- df.compare[df.compare$iso3 == "THA" & df.compare$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    "base_emissions_mtco2e"]*(1-.30)
+NDC.rebase1.tha.con <- df.compare[df.compare$iso3 == "THA" & df.compare$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                  "base_emissions_mtco2e"]*(1-.40)
+
+### USA [30% - 40% below BAU]
+NDC.rebase1.usa.lower <- df.compare[df.compare$iso3 == "USA" & df.compare$year == 2030, # rebase lower NDC to CERc BAU in 2030
+                                    "base_emissions_mtco2e"]*(1-.50)
+NDC.rebase1.usa.upper <- df.compare[df.compare$iso3 == "USA" & df.compare$year == 2030, # rebase upper NDC to CERc BAU in 2030
+                                  "base_emissions_mtco2e"]*(1-.52)
+
+### MYS [45% below 2005 EI]
+#### rebase EI2005 to CERc emissions baseline
+EI2005cerc <- df.compare[df.compare$iso3 == "MYS" & df.compare$year == 2005, "base_emissions_mtco2e"]/GDP2005
+EI2030cerc <- EI_Ef(EI2005cerc, -0.45) # find emissions intensity based on CERC 2005 figures
+
+NDC.rebase1.mys <- EI2030cerc*GDP2030
+
+### MYS [45% below 2005 EI]
+#### rebase EI2005 to CERc emissions baseline
+EI2005cerc <- df.compare[df.compare$iso3 == "MYS" & df.compare$year == 2005, "base_emissions_mtco2e"]/GDP2005
+EI2030cerc <- EI_Ef(EI2005cerc, -0.45) # find emissions intensity based on CERC 2005 figures
+
+NDC.rebase1.mys <- EI2030cerc*GDP2030
+
+## add column with rebased NDC figures
+
+df.compare <- df.compare %>% 
+  mutate(rb1_NDCuncon_mtco2e = 
+           case_when(
+             iso3 == "IDN" & year == 2030 ~ NDC.rebase1.idn.uncon,
+             iso3 == "THA" & year == 2030 ~ NDC.rebase1.tha.uncon,
+             iso3 == "USA" & year == 2030 ~ NDC.rebase1.usa.lower,
+             iso3 == "MYS" & year == 2030 ~ NDC.rebase1.mys,
+             .default = NA)
+  )
+df.compare <- df.compare %>% 
+  mutate(rb1_NDCcon_mtco2e = 
+           case_when(
+             iso3 == "IDN" & year == 2030 ~ NDC.rebase1.idn.con,
+             iso3 == "THA" & year == 2030 ~ NDC.rebase1.tha.con,
+             iso3 == "USA" & year == 2030 ~ NDC.rebase1.usa.upper,
+             .default = NA)
+  )
+```
+
+Plot the emissions allocation graph.
+```{r echo=TRUE, warning=FALSE}
+## plot preview
+
+ggplot(df.compare) +
+  facet_wrap(~iso3, scales = "free") +
+  geom_path(aes(x = year, y = base_emissions_mtco2e),
+            colour = "grey",
+            linewidth = 1) +
+  geom_path(aes(x = year, y = allocation_MtCO2),
+            colour = "orange",
+            linewidth = 1) +
+  geom_point(aes(x = year, y = NDCuncon_emissions_target_mtco2e),
+             colour = "blue",
+             size = 1.5) +
+  geom_point(aes(x = year, y = NDCcon_emissions_target_mtco2e),
+             colour = "lightblue",
+             size = 1.5) +
+  geom_point(aes(x = year, y = rb1_NDCuncon_mtco2e),
+             colour = "darkgreen",
+             size = 1.5) +
+  geom_point(aes(x = year, y = rb1_NDCcon_mtco2e),
+             colour = "yellow",
+             size = 1.5) +
+  scale_x_continuous(limit = c(1990,2030)) +
+  facet_wrap(vars(iso3)) +
+    theme(panel.background = element_blank(),
+          panel.grid = element_blank(),
+          strip.background = element_blank(),
+          strip.text = element_text(face = "bold"))
+
+```
+
+### Approach 2
+
+For the second approach we rebase the emissions reduction target quotient to the CERF baseline inclusive of LULUCF emissions/removal. This method is discontinued online but the database is still accessible.
+```{r}
+## --- Approach 2 --- ##
+
+## national allocations are calculated as the difference between the national baseline 
+## and national share of the global emissions reduction obligation
+## RCI = national rdx/global rdx
+## national rdx = RCI/global rdx
+# global rdx in 2030 = 29422.99 MtCO2e
+
+# use lulucf-based dataset
+## create same comparison table
+
+df.compare.lulucf <- df.lulucf.fs
+
+## --- add NDC column for all countries --- ##
+# create base and net-CO2 emissions line [fossil CO2 +- LULUCF removals]
+
+df.compare.lulucf <- df.compare.lulucf %>% mutate(base_netemissions_mtco2e = fossil_CO2_MtCO2+NonCO2_MtCO2e+LULUCF_MtCO2)
+
+## add NDC to new columns in lulucf compare dataframe 
+
+df.compare.lulucf <- df.compare.lulucf %>% 
+  mutate(NDCuncon_emissions_target_mtco2e = 
+           case_when(
+             iso3 == "IDN" & year == 2030 ~ NDC.uncon.idn,
+             iso3 == "THA" & year == 2030 ~ NDC.uncon.tha,
+             iso3 == "USA" & year == 2030 ~ NDC.lower.US,
+             iso3 == "MYS" & year == 2030 ~ NDC.MYS.lulucf, # replace MYS NDC with net emissions adjusted figure
+             .default = NA)
+  )
+df.compare.lulucf <- df.compare.lulucf %>% 
+  mutate(NDCcon_emissions_target_mtco2e = 
+           case_when(
+             iso3 == "IDN" & year == 2030 ~ NDC.con.idn,
+             iso3 == "THA" & year == 2030 ~ NDC.con.tha,
+             iso3 == "USA" & year == 2030 ~ NDC.upper.US,
+             .default = NA)
+  )
+```
+
+```{r}
+## rebase NDC to total emissions excl. LULUCF baseline
+
+### IDN [31.89% - 43.20% below BAU]
+NDC.rebase2.idn.uncon <- df.compare.lulucf[df.compare.lulucf$iso3 == "IDN" & df.compare.lulucf$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    "base_netemissions_mtco2e"]*(1-.3189)
+NDC.rebase2.idn.con <- df.compare.lulucf[df.compare.lulucf$iso3 == "IDN" & df.compare.lulucf$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                  "base_netemissions_mtco2e"]*(1-.4320)
+
+### THA [30% - 40% below BAU]
+NDC.rebase2.tha.uncon <- df.compare.lulucf[df.compare.lulucf$iso3 == "THA" & df.compare.lulucf$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    "base_netemissions_mtco2e"]*(1-.30)
+NDC.rebase2.tha.con <- df.compare.lulucf[df.compare.lulucf$iso3 == "THA" & df.compare.lulucf$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                  "base_netemissions_mtco2e"]*(1-.40)
+
+### USA [30% - 40% below BAU]
+NDC.rebase2.usa.lower <- df.compare.lulucf[df.compare.lulucf$iso3 == "USA" & df.compare.lulucf$year == 2030, # rebase lower NDC to CERc BAU in 2030
+                                    "base_netemissions_mtco2e"]*(1-.50)
+NDC.rebase2.usa.upper <- df.compare.lulucf[df.compare.lulucf$iso3 == "USA" & df.compare.lulucf$year == 2030, # rebase upper NDC to CERc BAU in 2030
+                                    "base_netemissions_mtco2e"]*(1-.52)
+
+### MYS [45% below 2005 EI]
+#### rebase EI2005 to CERc emissions baseline
+EI2005cerc.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == "MYS" & df.compare.lulucf$year == 2005, "base_netemissions_mtco2e"]/GDP2005
+EI2030cerc.lulucf <- EI_Ef(EI2005cerc.lulucf, -0.45) # find emissions intensity based on CERC 2005 figures
+
+NDC.rebase2.mys <- EI2030cerc.lulucf*GDP2030
+
+## add column with rebased NDC figures
+
+df.compare.lulucf <- df.compare.lulucf %>% 
+  mutate(rb2_NDCuncon_mtco2e = 
+           case_when(
+             iso3 == "IDN" & year == 2030 ~ NDC.rebase2.idn.uncon,
+             iso3 == "THA" & year == 2030 ~ NDC.rebase2.tha.uncon,
+             iso3 == "USA" & year == 2030 ~ NDC.rebase2.usa.lower,
+             iso3 == "MYS" & year == 2030 ~ NDC.rebase2.mys,
+             .default = NA)
+  )
+df.compare.lulucf <- df.compare.lulucf %>% 
+  mutate(rb2_NDCcon_mtco2e = 
+           case_when(
+             iso3 == "IDN" & year == 2030 ~ NDC.rebase2.idn.con,
+             iso3 == "THA" & year == 2030 ~ NDC.rebase2.tha.con,
+             iso3 == "USA" & year == 2030 ~ NDC.rebase2.usa.upper,
+             .default = NA)
+  )
+
+```
+
+```{r warning=FALSE}
+## --- plot preview --- ##
+
+ggplot(df.compare.lulucf) +
+  geom_path(aes(x = year, y = base_netemissions_mtco2e),
+            colour = "grey",
+            linewidth= 1) +
+  geom_path(aes(x = year, y = allocation_MtCO2),
+            colour = "orange",
+            linewidth= 1) +
+  geom_point(aes(x = year, y = NDCuncon_emissions_target_mtco2e),
+             colour = "blue",
+             size = 2) +
+  geom_point(aes(x = year, y = NDCcon_emissions_target_mtco2e),
+             colour = "lightblue",
+             size = 2) +
+  geom_point(aes(x = year, y = rb2_NDCuncon_mtco2e),
+             colour = "darkgreen",
+             size = 2) +
+  geom_point(aes(x = year, y = rb2_NDCcon_mtco2e),
+             colour = "yellow",
+             size = 2) +
+  theme(panel.background = element_blank(),
+        panel.grid = element_blank(),
+        ) +
+  facet_wrap(vars(iso3)) 
+
+```
+
+# Wrapping up the comparison
+
+I now write the results into neat comparative tables and graphics.
+
+First we create the table for comparison without lulucf.
+```{r echo=TRUE}
+## --- output reduction levels for fair share and NDCs --- ##
+
+# total emissions excl. LULUCF baseline for 2030
+## fair share reductions
+fs.rdxn.idn <- df.compare[df.compare$iso3 == "IDN" & df.compare$year == "2030", "base_emissions_mtco2e"] - 
+  df.compare[df.compare$iso3 == "IDN" & df.compare$year == "2030", "allocation_MtCO2"]
+fs.rdxn.tha <- df.compare[df.compare$iso3 == "THA" & df.compare$year == "2030", "base_emissions_mtco2e"] - 
+  df.compare[df.compare$iso3 == "THA" & df.compare$year == "2030", "allocation_MtCO2"]
+fs.rdxn.usa <- df.compare[df.compare$iso3 == "USA" & df.compare$year == "2030", "base_emissions_mtco2e"] - 
+  df.compare[df.compare$iso3 == "USA" & df.compare$year == "2030", "allocation_MtCO2"]
+fs.rdxn.mys <- df.compare[df.compare$iso3 == "MYS" & df.compare$year == "2030", "base_emissions_mtco2e"] - 
+  df.compare[df.compare$iso3 == "MYS" & df.compare$year == "2030", "allocation_MtCO2"]
+
+##* recall NDC reductions calculations from above
+##* use rebase 1
+
+NDC.rdxn.uncon.rebase1.idn <- df.compare[df.compare$iso3 == "IDN" & df.compare$year == "2030", "base_emissions_mtco2e"] - NDC.rebase1.idn.uncon 
+NDC.rdxn.con.rebase1.idn <- df.compare[df.compare$iso3 == "IDN" & df.compare$year == "2030", "base_emissions_mtco2e"] - NDC.rebase1.idn.con
+NDC.rdxn.uncon.rebase1.tha <- df.compare[df.compare$iso3 == "THA" & df.compare$year == "2030", "base_emissions_mtco2e"] - NDC.rebase1.tha.uncon
+NDC.rdxn.con.rebase1.tha <- df.compare[df.compare$iso3 == "THA" & df.compare$year == "2030", "base_emissions_mtco2e"] - NDC.rebase1.tha.con
+NDC.rdxn.lower.rebase1.usa <- df.compare[df.compare$iso3 == "USA" & df.compare$year == "2030", "base_emissions_mtco2e"] - NDC.rebase1.usa.lower
+NDC.rdxn.upper.rebase1.usa <- df.compare[df.compare$iso3 == "USA" & df.compare$year == "2030", "base_emissions_mtco2e"] - NDC.rebase1.usa.upper
+NDC.rdxn.rebase1.mys <- df.compare[df.compare$iso3 == "MYS" & df.compare$year == "2030", "base_emissions_mtco2e"] - NDC.rebase1.mys
+
+# output dataframe of NDC - rebase1 - fair share comparisons
+fairshare.output <- data.frame(country  = c("IDN", "THA", "USA","MYS"),
+                 NDC.emi.rdxn.uncon = c(NDC.rdxn.uncon.idn, NDC.rdxn.uncon.tha, NDC.rdxn.lower.US, NDC.rdxn.MYS),
+                 NDC.emi.rdxn.con = c(NDC.rdxn.con.idn, NDC.rdxn.con.tha, NDC.rdxn.upper.US, NDC.rdxn.MYS),
+                 NDC.rebase.uncon = c(NDC.rdxn.uncon.rebase1.idn,NDC.rdxn.uncon.rebase1.tha,NDC.rdxn.lower.rebase1.usa,NDC.rdxn.rebase1.mys),
+                 NDC.rebase.con = c(NDC.rdxn.con.rebase1.idn,NDC.rdxn.con.rebase1.tha,NDC.rdxn.upper.rebase1.usa,NA),
+                 fairshare.rdxn = c(fs.rdxn.idn, fs.rdxn.tha, fs.rdxn.usa, fs.rdxn.mys)
+                 )
+print(fairshare.output)
+```
+
+Then we do the same for comparison with lulucf.
+
+```{r echo=TRUE}
+## total emissions incl. LULUCF baseline for 2030
+fs.rdxn.idn.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == "IDN" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - 
+  df.compare.lulucf[df.compare.lulucf$iso3 == "IDN" & df.compare.lulucf$year == "2030", "allocation_MtCO2"]
+fs.rdxn.tha.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == "THA" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - 
+  df.compare.lulucf[df.compare.lulucf$iso3 == "THA" & df.compare.lulucf$year == "2030", "allocation_MtCO2"]
+fs.rdxn.usa.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == "USA" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - 
+  df.compare.lulucf[df.compare.lulucf$iso3 == "USA" & df.compare.lulucf$year == "2030", "allocation_MtCO2"]
+fs.rdxn.mys.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == "MYS" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - 
+  df.compare.lulucf[df.compare.lulucf$iso3 == "MYS" & df.compare.lulucf$year == "2030", "allocation_MtCO2"]
+
+##* recall NDC reductions /w netted emissions calculations from above
+##* BAU for IDN, THA, USA should be the same
+##* use rebase2
+
+NDC.rdxn.uncon.rebase2.idn <- df.compare.lulucf[df.compare.lulucf$iso3 == "IDN" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - NDC.rebase2.idn.uncon 
+NDC.rdxn.con.rebase2.idn <- df.compare.lulucf[df.compare.lulucf$iso3 == "IDN" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - NDC.rebase2.idn.con 
+NDC.rdxn.uncon.rebase2.tha <- df.compare.lulucf[df.compare.lulucf$iso3 == "THA" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - NDC.rebase2.tha.uncon 
+NDC.rdxn.con.rebase2.tha <- df.compare.lulucf[df.compare.lulucf$iso3 == "THA" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - NDC.rebase2.tha.con 
+NDC.rdxn.lower.rebase2.usa <- df.compare.lulucf[df.compare.lulucf$iso3 == "USA" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - NDC.rebase2.usa.lower
+NDC.rdxn.upper.rebase2.usa <- df.compare.lulucf[df.compare.lulucf$iso3 == "USA" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - NDC.rebase2.usa.upper
+NDC.rdxn.rebase2.mys <- df.compare.lulucf[df.compare.lulucf$iso3 == "MYS" & df.compare.lulucf$year == "2030", "base_netemissions_mtco2e"] - NDC.rebase2.mys
+
+# output dataframe of NDC - rebase2 - fair share comparisons
+fairshare.output.lulucf <- data.frame(country  = c("IDN", "THA", "USA","MYS"),
+                               NDC.emi.rdxn.uncon = c(NDC.rdxn.uncon.idn, NDC.rdxn.uncon.tha, NDC.rdxn.lower.US, NDC.rdxn.MYS),
+                               NDC.emi.rdxn.con = c(NDC.rdxn.con.idn, NDC.rdxn.con.tha, NDC.rdxn.upper.US, NDC.rdxn.MYS),
+                               NDC.rebase.uncon = c(NDC.rdxn.uncon.rebase2.idn,NDC.rdxn.uncon.rebase2.tha,NDC.rdxn.lower.rebase2.usa,NDC.rdxn.rebase2.mys),
+                               NDC.rebase.con = c(NDC.rdxn.con.rebase2.idn,NDC.rdxn.con.rebase2.tha,NDC.rdxn.upper.rebase2.usa,NA),
+                                fairshare.rdxn = c(fs.rdxn.idn.lulucf, fs.rdxn.tha.lulucf, fs.rdxn.usa.lulucf, fs.rdxn.mys.lulucf)
+                               )
+
+print(fairshare.output.lulucf)
+```
+
+I now plot a simple point graph for both graphs.
+
+```{r echo=TRUE, warning=FALSE}
+## --- plot preview --- ##
+
+# without lulucf
+ggplot(fairshare.output) +
+  geom_point(aes(x = country, y = NDC.emi.rdxn.uncon),
+              colour = "#004678",
+              shape = 18,
+              size = 4) +
+  geom_point(aes(x = country, y = NDC.emi.rdxn.con),
+             colour = "#8FAAE5",
+             shape = 18,
+             size = 4) +
+  geom_point(aes(x = country, y = NDC.rebase.uncon),
+             colour = "#B88C00",
+             shape = 18,
+             size = 4) +
+  geom_point(aes(x = country, y = NDC.rebase.con),
+             colour = "#FFC000",
+             shape = 18,
+             size = 4) +
+  geom_point(aes(x = country, y = fairshare.rdxn),
+             colour = "#FF671B",
+             shape = 4,
+             stroke = 2,
+             size = 4) +
+  labs(x = "country",
+       y = "emissions reduction (MtCO2)") +
+  theme(panel.background = element_blank(),
+        panel.grid.major.y = element_line(linewidth = 0.5,
+                                          colour = "lightgrey"),
+        panel.grid.major.x = element_blank(),
+        axis.line.x = element_line(linewidth = 1),
+        axis.ticks.x = element_line(linewidth = 1),
+        axis.ticks.y = element_blank(),
+        text = element_text(family = "Arial",
+                            size = 12))
+
+# with lulucf
+
+ggplot(fairshare.output.lulucf) +
+  geom_point(aes(x = country, y = NDC.emi.rdxn.uncon),
+             colour = "#004678",
+             shape = 18,
+             size = 4) +
+  geom_point(aes(x = country, y = NDC.emi.rdxn.con),
+             colour = "#8FAAE5",
+             shape = 18,
+             size = 4) +
+  geom_point(aes(x = country, y = NDC.rebase.uncon),
+             colour = "#B88C00",
+             shape = 18,
+             size = 4) +
+  geom_point(aes(x = country, y = NDC.rebase.con),
+             colour = "#FFC000",
+             shape = 18,
+             size = 4) +
+  geom_point(aes(x = country, y = fairshare.rdxn),
+             colour = "#FF671B",
+             shape = 4,
+             stroke = 2,
+             size = 4) +
+  labs(x = "country",
+       y = "emissions reduction (MtCO2)") +
+  theme(panel.background = element_blank(),
+        panel.grid.major.y = element_line(linewidth = 0.5,
+                                          colour = "lightgrey"),
+        panel.grid.major.x = element_blank(),
+        axis.line.x = element_line(linewidth = 1),
+        axis.ticks.x = element_line(linewidth = 1),
+        axis.ticks.y = element_blank(),
+        text = element_text(family = "Arial",
+                            size = 12))
+```
+
+# Analysis
+
+A fair NDC target would align with fair share, a more ambitious NDC target would be above the emissions reduction required by fair share. 
+
+From the last 2 plots, we can see that two compared developing countries [IDN, THA] largely stayed within fair shares in both scenarios with or without LULUCF (all blue, green, and yellow points above X mark). There are exceptions if we rebased for CERC baseline, for example, the IDN rebased conditional target would be below fair share if we considered LULUCF. This is likely due to the high emissions from LUCF/AFOLU sector in Indonesia. 
+
+For MYS, the targeted emissions reduction (derived from assumed emissions intensity) will be roughly 1 MtCO2e short from fair share if excluding LULUCF. If we rebased this to CERF baseline (not country reported emissions projection), we find the emissions reduction in negative, which means the country aimed not to reduce but increase emissions above baseline. If we include the country reported LULUCF removals, MYS stayed within fair shares by around 10 MtCO2e. But if we rebased to CERF LULUCF inclusive emissions baseline, MYS fell short by roughly 400 MtCO2e. This is likely due to a difference between the country reported (BUR4) and PRIMAP-hist LULUCF data, due to methodological differences.
+
+To put things into perspective, US overall aimed far less ambitious than it ought to. The country's NDC target is off the their fair share mark by around 4000 MtCo2e in both scenarios. This means the country ought to ramp up immensely its ambition to equitably recompense for the responsibility it holds over global warming. 

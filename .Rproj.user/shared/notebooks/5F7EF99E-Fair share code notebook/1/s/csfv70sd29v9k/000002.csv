@@ -1,0 +1,77 @@
+"0","```r
+## --- Approach 1 rebase --- ##
+
+## rebase NDC to total emissions excl. LULUCF baseline
+
+### IDN [31.89% - 43.20% below BAU]
+NDC.rebase1.idn.uncon <- df.compare[df.compare$iso3 == \"IDN\" & df.compare$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    \"base_emissions_mtco2e\"]*(1-.3189)
+NDC.rebase1.idn.con <- df.compare[df.compare$iso3 == \"IDN\" & df.compare$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                    \"base_emissions_mtco2e\"]*(1-.4320)
+
+### THA [30% - 40% below BAU]
+NDC.rebase1.tha.uncon <- df.compare[df.compare$iso3 == \"THA\" & df.compare$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    \"base_emissions_mtco2e\"]*(1-.30)
+NDC.rebase1.tha.con <- df.compare[df.compare$iso3 == \"THA\" & df.compare$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                  \"base_emissions_mtco2e\"]*(1-.40)
+
+### USA [30% - 40% below BAU]
+NDC.rebase1.usa.lower <- df.compare[df.compare$iso3 == \"USA\" & df.compare$year == 2030, # rebase lower NDC to CERc BAU in 2030
+                                    \"base_emissions_mtco2e\"]*(1-.50)
+NDC.rebase1.usa.upper <- df.compare[df.compare$iso3 == \"USA\" & df.compare$year == 2030, # rebase upper NDC to CERc BAU in 2030
+                                  \"base_emissions_mtco2e\"]*(1-.52)
+
+### MYS [45% below 2005 EI]
+#### rebase EI2005 to CERc emissions baseline
+EI2005cerc <- df.compare[df.compare$iso3 == \"MYS\" & df.compare$year == 2005, \"base_emissions_mtco2e\"]/GDP2005
+EI2030cerc <- EI_Ef(EI2005cerc, -0.45) # find emissions intensity based on CERC 2005 figures
+
+NDC.rebase1.mys <- EI2030cerc*GDP2030
+
+## rebase NDC to net emissions incl. LULUCF baseline
+
+### IDN [31.89% - 43.20% below BAU]
+NDC.rebase2.idn.uncon <- df.compare[df.compare$iso3 == \"IDN\" & df.compare$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    \"net_emissions_mtco2e\"]*(1-.3189)
+NDC.rebase1.idn.con <- df.compare[df.compare$iso3 == \"IDN\" & df.compare$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                  \"net_emissions_mtco2e\"]*(1-.4320)
+
+### THA [30% - 40% below BAU]
+NDC.rebase1.tha.uncon <- df.compare[df.compare$iso3 == \"THA\" & df.compare$year == 2030, # rebase uncon NDC to CERc BAU in 2030
+                                    \"net_emissions_mtco2e\"]*(1-.30)
+NDC.rebase1.tha.con <- df.compare[df.compare$iso3 == \"THA\" & df.compare$year == 2030, # rebase con NDC to CERc BAU in 2030
+                                  \"base_emissions_mtco2e\"]*(1-.40)
+
+### USA [30% - 40% below BAU]
+NDC.rebase1.usa.lower <- df.compare[df.compare$iso3 == \"USA\" & df.compare$year == 2030, # rebase lower NDC to CERc BAU in 2030
+                                    \"base_emissions_mtco2e\"]*(1-.50)
+NDC.rebase1.usa.upper <- df.compare[df.compare$iso3 == \"USA\" & df.compare$year == 2030, # rebase upper NDC to CERc BAU in 2030
+                                    \"base_emissions_mtco2e\"]*(1-.52)
+
+### MYS [45% below 2005 EI]
+#### rebase EI2005 to CERc emissions baseline
+EI2005cerc <- df.compare[df.compare$iso3 == \"MYS\" & df.compare$year == 2005, \"base_emissions_mtco2e\"]/GDP2005
+EI2030cerc <- EI_Ef(EI2005cerc, -0.45) # find emissions intensity based on CERC 2005 figures
+
+NDC.rebase1.mys <- EI2030cerc*GDP2030
+
+## add column with rebased NDC figures
+
+df.compare <- df.compare %>% 
+  mutate(rb1_NDCuncon_mtco2e = 
+           case_when(
+             iso3 == \"IDN\" & year == 2030 ~ NDC.rebase1.idn.uncon,
+             iso3 == \"THA\" & year == 2030 ~ NDC.rebase1.tha.uncon,
+             iso3 == \"USA\" & year == 2030 ~ NDC.rebase1.usa.lower,
+             iso3 == \"MYS\" & year == 2030 ~ NDC.rebase1.mys,
+             .default = NA)
+  )
+df.compare <- df.compare %>% 
+  mutate(rb1_NDCcon_mtco2e = 
+           case_when(
+             iso3 == \"IDN\" & year == 2030 ~ NDC.rebase1.idn.con,
+             iso3 == \"THA\" & year == 2030 ~ NDC.rebase1.tha.con,
+             iso3 == \"USA\" & year == 2030 ~ NDC.rebase1.usa.upper,
+             .default = NA)
+  )
+```"

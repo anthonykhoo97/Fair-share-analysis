@@ -1,0 +1,29 @@
+"0","ggplot(df.countries, aes(x = 1-(pop_mln_above_dl/pop_mln))) +
+  geom_density(color = ""#004876"",
+               fill = ""#8cbede"",
+               linewidth = 0.8) +
+  geom_point(shape = 21) +
+  labs(y = ""MtCO2"", x = ""ratio"") +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 1.5)) +
+  scale_x_continuous(expand = c(0,0)) +
+  theme(panel.background = element_blank(),
+        axis.title.x = element_text(hjust =1),
+        axis.title.y = element_text(angle = 0,
+                                    hjust = 1),
+        axis.ticks.y = element_blank(),
+        axis.line.x = element_line(linewidth = .75))
+"
+"1","[1m[33mError[39m in `geom_point()`:[22m
+[38;5;239m[33m![38;5;239m Problem while setting up geom.
+[36mℹ[38;5;239m Error occurred in the 2nd layer.[39m
+[1mCaused by error in `compute_geom_1()`:[22m
+[38;5;239m[33m![38;5;239m `geom_point()` requires the following missing aesthetics: [32my[38;5;239m[39m
+Backtrace:
+[90m  1. [39m[1mbase[22m (local) `<fn>`(x)
+[90m  2. [39mggplot2:::print.ggplot(x)
+[90m  4. [39mggplot2:::ggplot_build.ggplot(x)
+[90m  5. [39mggplot2:::by_layer(...)
+[90m 12. [39mggplot2 (local) f(l = layers[[i]], d = data[[i]])
+[90m 13. [39ml$compute_geom_1(d)
+[90m 14. [39mggplot2 (local) [1m[94mcompute_geom_1([39m[22m..., self = self[1m[94m)[39m[22m
+"

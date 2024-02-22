@@ -1,0 +1,68 @@
+"0","#boxcox-transform to show details in 1 - 100 MtCO2e
+ggplot(df.countries, aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3)) + 
+  geom_density2d(color = ""#8FAAE5"", 
+                 alpha = 0.5) +
+  geom_point(shape = 19,
+             color = ""#004678"",
+             alpha = .7
+             ) +
+   geom_point(data = highlight_df,
+              aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+              shape = 19,
+              color = ""#ff6718""
+             ) +
+  geom_text(data =  df.countries[df.countries$iso3 %in% country_to_label,],
+            aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+            check_overlap = T, 
+            size = 2.7,
+            hjust = -.3) +
+  geom_text(data =  df.countries[df.countries$iso3 == ""MYS"",],
+            aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+            check_overlap = T, 
+            size = 2.7,
+            hjust = -.3,
+            color = ""#ff6718"") +
+  annotate(""text"", x = 0, y = 600000, label = ""MtCO2e"", size = 3) +
+  xlab(""MtCO2e"") +
+  scale_x_continuous(trans = modulus_trans(.25), labels = scales::comma) +
+  scale_y_continuous(trans = modulus_trans(.25), labels = scales::comma) +
+  theme(panel.background = element_blank(),
+        axis.line.x = element_line(linewidth = .5),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(hjust = 1, size = 9))
+#boxcox-transform to show details in 1 - 100 MtCO2e
+ggplot(df.countries, aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3)) + 
+  geom_density2d(color = ""#8FAAE5"", 
+                 alpha = 0.5) +
+  geom_point(shape = 19,
+             color = ""#004678"",
+             alpha = .7
+             ) +
+   geom_point(data = highlight_df,
+              aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+              shape = 19,
+              color = ""#ff6718""
+             ) +
+  geom_text(data =  df.countries[df.countries$iso3 %in% country_to_label,],
+            aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+            check_overlap = T, 
+            size = 2.7,
+            hjust = -.3) +
+  geom_text(data =  df.countries[df.countries$iso3 == ""MYS"",],
+            aes(x = fs_rdxn_mtco2e, y = cum_base_emissions_mtco2e, label = iso3),
+            check_overlap = T, 
+            size = 2.7,
+            hjust = -.3,
+            color = ""#ff6718"") +
+  annotate(""text"", x = 0, y = 600000, label = ""MtCO2e"", size = 3) +
+  xlab(""MtCO2e"") +
+  scale_x_continuous(trans = modulus_trans(.25), labels = scales::comma) +
+  scale_y_continuous(trans = modulus_trans(.25), labels = scales::comma) +
+  theme(panel.background = element_blank(),
+        axis.line.x = element_line(linewidth = .5),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        axis.title.x = element_text(hjust = 1, size = 9))
+"
+"0","ggsave(""fs_emi_cntrs_bivariate_distr.svg"", device = ""svg"", width = 15, height = 11, unit = ""cm"")"

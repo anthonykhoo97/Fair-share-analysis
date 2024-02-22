@@ -1,0 +1,3 @@
+"0","# read csv"
+"0","df <- read.csv(file=""C:/Users/khoo.weiyang/OneDrive - Khazanah Research Institute/KRI-Work/Climate/Resources/02 Data/fair-share-analysis/data/cerc_all_output_1694574828.csv"") # import dataset excl. lulucf"
+"0","print(df)"

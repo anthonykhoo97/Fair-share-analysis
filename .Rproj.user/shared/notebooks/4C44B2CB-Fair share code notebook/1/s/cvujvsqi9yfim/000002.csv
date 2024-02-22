@@ -1,0 +1,34 @@
+"0","```r
+## total emissions incl. LULUCF baseline for 2030
+fs.rdxn.idn.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == \"IDN\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - 
+  df.compare.lulucf[df.compare.lulucf$iso3 == \"IDN\" & df.compare.lulucf$year == \"2030\", \"allocation_MtCO2\"]
+fs.rdxn.tha.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == \"THA\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - 
+  df.compare.lulucf[df.compare.lulucf$iso3 == \"THA\" & df.compare.lulucf$year == \"2030\", \"allocation_MtCO2\"]
+fs.rdxn.usa.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == \"USA\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - 
+  df.compare.lulucf[df.compare.lulucf$iso3 == \"USA\" & df.compare.lulucf$year == \"2030\", \"allocation_MtCO2\"]
+fs.rdxn.mys.lulucf <- df.compare.lulucf[df.compare.lulucf$iso3 == \"MYS\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - 
+  df.compare.lulucf[df.compare.lulucf$iso3 == \"MYS\" & df.compare.lulucf$year == \"2030\", \"allocation_MtCO2\"]
+
+##* recall NDC reductions /w netted emissions calculations from above
+##* BAU for IDN, THA, USA should be the same
+##* use rebase2
+
+NDC.rdxn.uncon.rebase2.idn <- df.compare.lulucf[df.compare.lulucf$iso3 == \"IDN\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - NDC.rebase2.idn.uncon 
+NDC.rdxn.con.rebase2.idn <- df.compare.lulucf[df.compare.lulucf$iso3 == \"IDN\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - NDC.rebase2.idn.con 
+NDC.rdxn.uncon.rebase2.tha <- df.compare.lulucf[df.compare.lulucf$iso3 == \"THA\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - NDC.rebase2.tha.uncon 
+NDC.rdxn.con.rebase2.tha <- df.compare.lulucf[df.compare.lulucf$iso3 == \"THA\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - NDC.rebase2.tha.con 
+NDC.rdxn.lower.rebase2.usa <- df.compare.lulucf[df.compare.lulucf$iso3 == \"USA\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - NDC.rebase2.usa.lower
+NDC.rdxn.upper.rebase2.usa <- df.compare.lulucf[df.compare.lulucf$iso3 == \"USA\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - NDC.rebase2.usa.upper
+NDC.rdxn.rebase2.mys <- df.compare.lulucf[df.compare.lulucf$iso3 == \"MYS\" & df.compare.lulucf$year == \"2030\", \"base_netemissions_mtco2e\"] - NDC.rebase2.mys
+
+# output dataframe of NDC - rebase2 - fair share comparisons
+fairshare.output.lulucf <- data.frame(country  = c(\"IDN\", \"THA\", \"USA\",\"MYS\"),
+                               NDC.emi.rdxn.uncon = c(NDC.rdxn.uncon.idn, NDC.rdxn.uncon.tha, NDC.rdxn.lower.US, NDC.rdxn.MYS),
+                               NDC.emi.rdxn.con = c(NDC.rdxn.con.idn, NDC.rdxn.con.tha, NDC.rdxn.upper.US, NDC.rdxn.MYS),
+                               NDC.rebase.uncon = c(NDC.rdxn.uncon.rebase2.idn,NDC.rdxn.uncon.rebase2.tha,NDC.rdxn.lower.rebase2.usa,NDC.rdxn.rebase2.mys),
+                               NDC.rebase.con = c(NDC.rdxn.con.rebase2.idn,NDC.rdxn.con.rebase2.tha,NDC.rdxn.upper.rebase2.usa,NA),
+                                fairshare.rdxn = c(fs.rdxn.idn.lulucf, fs.rdxn.tha.lulucf, fs.rdxn.usa.lulucf, fs.rdxn.mys.lulucf)
+                               )
+
+print(fairshare.output.lulucf)
+```"
